@@ -1,3 +1,5 @@
+from datetime import datetime
+from app.models.tickets import TicketUrgency, TicketStatus
 import sqlmodel
 from app.models.user import UserRole
 from pydantic import EmailStr
@@ -80,23 +82,89 @@ class Message(SQLModel):
 class CategoryIn(SQLModel):
     name: str = Field(max_length=100, unique=True, index=True)
 
+
+
 class TicketsIn(SQLModel):
-    title: str = Field(max_length=200)
-    description: str= Field(max_length=200)
-    urgency: str
+    title: str
+    description: str
+    urgency: TicketUrgency = TicketUrgency.GENANT
+    category_id: UUID
 
 class TicketsOut(SQLModel):
     id: UUID
-    reference: str = Field(max_length=20, unique=True, index=True)
-    title: str = Field(max_length=200)
+    reference: str
+    title: str
     description: str
-    urgency: str
-    status: str
+    urgency: TicketUrgency
+    status: TicketStatus
+    category_id: UUID
+    reporter_id: UUID
+    assignee_id: UUID | None = None
+    resolution_note: str | None = None
+    created_at: datetime | None = None
+    resolved_at: datetime | None = None
+    closed_at: datetime | None = None
 
-    category_id: str
+class TicketUpdate(SQLModel):
+    title: str | None = None
+    description: str | None = None
+    urgency: TicketUrgency | None = None
+    status: TicketStatus | None = None
+    category_id: UUID | None = None
+    assignee_id: UUID | None = None
+    resolution_note: str | None = None
+
 
 
 class CategoryOut(SQLModel):
     name: str
     Ticktes: list[TicketsOut]
     count: int
+
+
+# ==========================================
+# CATEGORY SCHEMAS
+# ==========================================
+
+
+
+class CategoryUpdate(SQLModel):
+    name: str | None = None
+    is_active: bool | None = None
+
+class CategoryRead(SQLModel):
+    id: UUID
+    name: str
+    is_active: bool
+
+
+
+# ==========================================
+# ATTACHMENT SCHEMAS
+# ==========================================
+
+class AttachmentRead(SQLModel):
+    id: UUID
+    ticket_id: UUID
+    uploaded_by: UUID
+    file_name: str
+    file_url: str
+    mime_type: str
+    created_at: datetime | None = None
+
+
+
+# ==========================================
+# TICKET EVENT SCHEMAS
+# ==========================================
+
+class TicketEventRead(SQLModel):
+    id: UUID
+    ticket_id: UUID
+    actor_id: UUID | None = None
+    event_type: str
+    old_value: str | None = None
+    new_value: str | None = None
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
