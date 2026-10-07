@@ -51,6 +51,7 @@ def read_users(session: SessionDep, skip: int = 0, limit: int = 100) -> Any:
     return UsersPublic(data=users_public, count=count)
 
 
+
 @router.post(
     "/", dependencies=[Depends(get_admin_active_superuser)], response_model=UserPublic
 )

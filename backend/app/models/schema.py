@@ -138,6 +138,10 @@ class CategoryRead(SQLModel):
     is_active: bool
 
 
+class CategoryIn(SQLModel):
+    name: str
+    is_active: bool
+
 
 # ==========================================
 # ATTACHMENT SCHEMAS
@@ -167,4 +171,3 @@ class TicketEventRead(SQLModel):
     new_value: str | None = None
     created_at: datetime | None = None
 
-    model_config = ConfigDict(from_attributes=True)

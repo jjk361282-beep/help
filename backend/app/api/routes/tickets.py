@@ -1,15 +1,15 @@
 import secrets
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session, select
+from sqlmodel import Session, select, col
 
-from app.api.deps import SessionDep
+from app.api.deps import SessionDep,get_admin_active_superuser,CurrentUser
 from app.models.tickets import Attachment, Category, Ticket, TicketEvent, TicketStatus
 from app.models.user import User
 from app.models import (
     AttachmentRead,
     CategoryRead,
-    CategoryRead,
+    CategoryIn,
     CategoryUpdate,
     TicketsIn,
     TicketEventRead,
@@ -30,8 +30,11 @@ def generate_ticket_reference() -> str:
 # CATEGORIES CONTROLLERS
 # ==========================================
 
-@router.post("/categories", response_model=CategoryRead, status_code=status.HTTP_201_CREATED)
-def create_category(payload: CategoryRead, db: SessionDep):
+@router.post("/categories", response_model=CategoryRead, status_code=status.HTTP_201_CREATED,dependencies=[Depends(get_admin_active_superuser)])
+def create_category(payload: CategoryIn, db: SessionDep):
+    """
+    create categorie
+    """
     db_category = Category.model_validate(payload)
     db.add(db_category)
     db.commit()
@@ -45,7 +48,7 @@ def list_categories(db: SessionDep):
     return categories
 
 
-@router.patch("/categories/{category_id}", response_model=CategoryRead)
+@router.patch("/categories/{category_id}", response_model=CategoryRead,dependencies=[Depends(get_admin_active_superuser)])
 def update_category(category_id: UUID, payload: CategoryUpdate, db: SessionDep):
     category = db.get(Category, category_id)
     if not category:
@@ -68,19 +71,20 @@ def update_category(category_id: UUID, payload: CategoryUpdate, db: SessionDep):
 @router.post("", response_model=TicketsOut, status_code=status.HTTP_201_CREATED)
 def create_ticket(
     payload: TicketsIn,
-    current_user_id: UUID,  # À remplacer par la dépendance d'authentification actuelle
     db: SessionDep,
+    current_user:CurrentUser
 ):
     # Vérification de l'existence de la catégorie
     category = db.get(Category, payload.category_id)
     if not category or not category.is_active:
-        raise HTTPException(status_code=400, detail="Catégorie invalide ou inactive")
+        raise HTTPException(status_code=400, detail="Invalid or inactive category")
+
 
     ticket_data = payload.model_dump()
     ticket = Ticket(
         **ticket_data,
         reference=generate_ticket_reference(),
-        reporter_id=current_user_id,
+        reporter_id=current_user.id,
         status=TicketStatus.NOUVEAU,
     )
 
@@ -91,7 +95,7 @@ def create_ticket(
     # Log de création de l'événement
     event = TicketEvent(
         ticket_id=ticket.id,
-        actor_id=current_user_id,
+        actor_id=current_user.id,
         event_type="CREATED",
         new_value=ticket.status.value,
     )
@@ -101,20 +105,26 @@ def create_ticket(
     return ticket
 
 
-@router.get("", response_model=list[TicketsOut])
+@router.get("", response_model=list[TicketsOut],)
 def list_tickets(
+    db: SessionDep,
+    user:CurrentUser,
     status_filter: TicketStatus | None = None,
     category_id: UUID | None = None,
-    db: SessionDep
+    skip:int=0,
+    limit:int=10,
 ):
     query = select(Ticket)
     if status_filter:
-        query = query.where(Ticket.status == status_filter)
+        query = query.where(Ticket.status == status_filter).order_by(col(Ticket.created_at).desc()).offset(skip).limit(limit)
     if category_id:
-        query = query.where(Ticket.category_id == category_id)
+        query = query.where(Ticket.category_id == category_id).order_by(col(Ticket.created_at).desc()).offset(skip).limit(limit)
 
     tickets = db.exec(query).all()
     return tickets
+
+
+
 
 
 @router.get("/{ticket_id}", response_model=TicketsOut)
@@ -184,5 +194,5 @@ def get_ticket_attachments(ticket_id: UUID, db: SessionDep):
 def get_ticket_events(ticket_id: UUID, db: SessionDep):
     ticket = db.get(Ticket, ticket_id)
     if not ticket:
-        raise HTTPException(status_code=404, detail="Ticket non trouvé")
+        raise HTTPException(status_code=404, detail="Ticket Not Found")
     return ticket.events
