@@ -1,5 +1,5 @@
 import sqlmodel
-from app.models.user import UserRole,
+from app.models.user import UserRole
 from pydantic import EmailStr
 from sqlmodel import SQLModel, Field
 from uuid import UUID
